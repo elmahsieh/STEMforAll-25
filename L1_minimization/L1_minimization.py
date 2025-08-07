@@ -135,7 +135,8 @@ def do_image_recovery(image_with_missing_values, missing_coordinates, threshold)
 
     H = np.array(image_with_missing_values, dtype=float)
 
-    for x, y in missing_coordinates :
+    for x, y in tqdm(missing_coordinates, desc="Recovering pixels", unit="px"):
+    # for x, y in missing_coordinates :
         H[x, y] = h[x, y]
 
     # 6. Compute accuracy of H(x, y)
