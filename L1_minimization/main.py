@@ -149,9 +149,24 @@ def run_batch_recovery(num_images=100):
             save_path="../reports"
         )
 
-def run_resized_image_recovery(image_path, resize_sizes=[64, 128, 256], missing_percentage=0.3):
+def generate_and_save_mask(width, height, percentage, filepath='mask_coords.npy'):
     """
-    Run image recovery on different resized versions of a single image.
+    Generate a fixed set of random coordinates for image masking and save them to a file.
+    """
+    max_num = int(percentage * width * height)
+    indices = np.random.choice(width * height, size=max_num, replace=False)
+    cols = indices // width
+    rows = indices % width
+    coordinates = np.stack((rows, cols), axis=1)
+
+    # Save to file
+    np.save(filepath, coordinates)
+    print(f"[INFO] Saved mask with {len(coordinates)} coordinates to {filepath}")
+
+def run_resized_image_recovery(image_path, resize_sizes=[64], missing_percentage=0.3):
+    """
+    Run image recovery on different resized versions of a single image using a newly
+    generated mask for each resized version.
     """
     os.makedirs("../resized_reports", exist_ok=True)
 
@@ -161,13 +176,21 @@ def run_resized_image_recovery(image_path, resize_sizes=[64, 128, 256], missing_
         resized_image = original_image_pil.resize((size, size), Image.LANCZOS)
         resized_np = np.array(resized_image)
 
-        # Simulate missing pixels
-        destroyed_image, missing_coords = random_destroy_to_image(
-            resized_np, missing_value=0, percentage=missing_percentage
-        )
-        missing_set = set(map(tuple, missing_coords))
+        # Generate mask specific to this resized image
+        mask_file = f"fixed_mask_{size}.npy"
+        generate_and_save_mask(width=size, height=size, percentage=missing_percentage, filepath=mask_file)
 
-        # Measure recovery time
+        # Load the just-generated mask
+        coords = np.load(mask_file)
+
+        # Apply fixed mask
+        destroyed_image = resized_np.copy()
+        for row, col in coords:
+            destroyed_image[row, col] = 0  # missing value = 0
+
+        missing_set = set(map(tuple, coords))
+
+        # Run recovery
         start_time = time.time()
         recovered_image, accuracy = do_image_recovery(destroyed_image, missing_set, 0.2)
         elapsed_time = time.time() - start_time
@@ -190,8 +213,11 @@ def run_resized_image_recovery(image_path, resize_sizes=[64, 128, 256], missing_
         print(f"✅ Report generated for {size}x{size} — Time: {elapsed_time:.2f}s, Accuracy: {accuracy:.2f}")
 
 if __name__ == "__main__":
+
     run_resized_image_recovery(
-        image_path="/Users/ehsieh2/Downloads/STEMFall2025/test_images/Lenna_(test_image).png"
+        image_path="/Users/ehsieh2/STEMforAll-25/test_images/Lenna_(test_image).png",
+        resize_sizes = [64],
+        missing_percentage=0.3
     )
 # if __name__ == "__main__":
 #     import cv2 as cv
